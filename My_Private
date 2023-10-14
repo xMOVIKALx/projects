@@ -1,0 +1,205 @@
+import telepot
+from telepot.namedtuple import ReplyKeyboardMarkup, KeyboardButton
+from flask import Flask , request
+import urllib3
+from googletrans import Translator
+from decimal import Decimal
+from faker import Faker
+import random
+import requests
+import openai
+from datetime import datetime
+openai.api_key = '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'
+proxy_url = "http://proxy.server:3128"
+telepot.api._pools = {
+    'default': urllib3.ProxyManager(proxy_url=proxy_url, num_pools=3, maxsize=10, retries=False, timeout=30),
+}
+telepot.api._onetime_pool_spec = (urllib3.ProxyManager, dict(proxy_url=proxy_url, num_pools=1, maxsize=1, retries=False, timeout=30))
+secret = "BOT"
+bot = telepot.Bot('6354969738:AAFCeThQ8PbwC3Zo265pq0qtr6-rSNt7Ej0')
+bot.setWebhook("https://ahmadam.pythonanywhere.com/{}".format(secret), max_connections=1)
+translator = Translator()
+fake = Faker()
+app = Flask(__name__)
+
+
+keyboard = ReplyKeyboardMarkup(keyboard=[
+    [KeyboardButton(text='/ask')],
+    [KeyboardButton(text='/user_id')],
+    [KeyboardButton(text='/translate')],
+    [KeyboardButton(text='/weather')],
+    [KeyboardButton(text='/caclculate')],
+    [KeyboardButton(text='/fake')]
+])
+
+keyboard1 = ReplyKeyboardMarkup(keyboard=[
+    [KeyboardButton(text='/help')]
+])
+keyboard2 = ReplyKeyboardMarkup(keyboard=[
+    [KeyboardButton(text='/start')]
+])
+
+try :
+    def handle(msg):
+        content_type, chat_type, chat_id = telepot.glance(msg)
+        chat_id = msg["chat"]["id"]
+        text = msg["text"]
+        if text.startswith("/"):
+            command = text.split()[0]
+            if command == "/user_id":
+                bot.sendMessage(chat_id, f"Your chat id is : {chat_id}",reply_markup=keyboard1)
+            elif command == "/start":
+                bot.sendMessage(chat_id, "Hello! for see commands type /help.",reply_markup=keyboard1)
+            elif command == "/help":
+                bot.sendMessage(chat_id, "List of command(s) :\n\n"
+                                         "▶️/start :\nStart the bot\n\n"
+                                         "❓/help :\nSee the list of tools\n\n"
+                                         "🤖/ask <input> :\nDavinci AI\n\n"
+                                         "🆔/user_id :\nGive your chat_id\n\n"
+                                         "🈶/translate <input> :\nTranslation from English to Persian and vice versa\n\n"
+                                         "🧾/calculate <input> :\nA simple calculate\n\n"
+                                         "🚷/fake :\nGive you a fake person information\n\n"
+                                         "🌤️/weather <city> : \nShow you the weather",reply_markup=keyboard)
+            elif command == "/translate":
+                try:
+                    word = text[len(command):].strip()
+                    lang = translator.detect(word).lang
+                    if lang == "fa":
+                        dest = "en"
+                    else:
+                        dest = "fa"
+                    translation = translator.translate(word, dest=dest).text
+                    bot.sendMessage(chat_id, translation,reply_markup=keyboard1)
+                except Exception as e :
+                    bot.sendMessage(chat_id, f"Please fill after /translate command.\nif everything okay, see the error.\nError : {e}",reply_markup=keyboard1)
+            elif command == "/calculate":
+                try:
+                    expression = text[len(command):].strip()
+                    result = eval(expression, {}, {'Decimal': Decimal})
+                    if len(str(result)) < 1:
+                        rounded_result = round(result, 5)
+                        bot.sendMessage(chat_id,f'{rounded_result}',reply_markup=keyboard1)
+                    else:
+                        bot.sendMessage(chat_id,f'{result}',reply_markup=keyboard1)
+                except Exception as e:
+                    bot.sendMessage(chat_id,f'Please fill after /calculate command.\nif everything okay, see the error.\nError : {e}',reply_markup=keyboard1)
+            elif command =="/fake":
+                age = random.randint(10, 110)
+                number = random.randint(100000000, 999999999)
+                bot.sendMessage(chat_id,"ℹ--️Fake person information :\n\n"
+                                        f"Ⓜ️-Name : {fake.name()}\n\n"
+                                        f"🔢-Age : {age}\n\n"
+                                        f"🏠-Address : {fake.address()}\n\n"
+                                        f"🔣-Phone number : {number}\n\n"
+                                        f"🔤-Text : {fake.text()}\n\n"
+                                        f"©️-Email : {fake.email()}\n\n"
+                                        f"🌍-Country : {fake.country()}\n\n"
+                                        f"🌐-URL : {fake.url()}",reply_markup=keyboard1)
+
+            elif command == '/ask':
+                try :
+                    user_input = msg['text']
+                    response = generate_response(user_input)
+                    bot.sendMessage(chat_id, response,reply_markup=keyboard1)
+                except Exception as e :
+                    bot.sendMessage(chat_id,f"Please fill after /ask command.\nif everything okay, see the error.\nError : {e}",reply_markup=keyboard1)
+            elif command == '/weather' :
+                def weather():
+                    try :
+                        city = text[len(command):]
+                        key = "7a9dc0d72d3ea935c7013005455e5307"
+                        URL = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={key}"
+                        r = requests.get(url=URL)
+                        data = r.json()
+                        rain = "0"
+                        for i in data:
+                            if i == "name":
+                                name = data["name"]
+                            elif i == "coord" :
+                                lon = data["coord"]["lon"]
+                                lat = data["coord"]["lat"]
+                            elif i == "dt":
+                                dt = datetime.fromtimestamp(data["dt"] + 12600)
+                                rdt = str(dt).split()
+                                date = rdt[0]
+                                time = rdt[1]
+                            elif i == "main":
+                                temp = str(data["main"]["temp"] - 273.15)
+                                temp_max = str(data["main"]["temp_max"] - 273.15)
+                                temp_min = str(data["main"]["temp_min"] - 273.15)
+                                rtemp = temp[0:5]
+                                rtemp_max = temp_max[0:5]
+                                rtemp_min = temp_min[0:5]
+                                hum = data["main"]["humidity"]
+                                pre = data["main"]["pressure"]
+                            elif i == "sys" :
+                                country = data["sys"]["country"]
+                                sunrise = datetime.fromtimestamp(data["sys"]["sunrise"] + 12600)
+                                sunset = datetime.fromtimestamp(data["sys"]["sunset"] + 12600)
+                            elif i == "wind" :
+                                deg = data["wind"]["deg"]
+                                speed = data["wind"]["speed"]
+                            elif i == "rain" :
+                                rain = data["rain"]["1h"]
+                            elif i == "weather" :
+                                weather = data["weather"]
+                                for item in weather :
+                                    for key, value in item.items() :
+                                        if key == "description" :
+                                            des = value
+                                        elif key == "main":
+                                            mn = value
+                        bot.sendMessage(chat_id,f"ℹ️--Information : \n|\n"
+                              f"🌍-country : {country}\n"
+                              f"🕌-city : {name}\n"
+                              f"📅-date : {date}\n"
+                              f"🕒-time : {time}\n"
+                              f"↔️-longitude : {lon}\n"
+                              f"↕️-latitude : {lat}\n\n"
+                              f"🌥️--Weather : \n|\n"
+                              f"🌡️-temperature : {rtemp}°C\n"
+                              f"❄️-minimum Temperature : {rtemp_min}°C\n"
+                              f"🔥-maximum Temperature : {rtemp_max}°C\n"
+                              f"💧-humidity : {hum}%\n"
+                              f"🌫️-description : {des}\n"
+                              f"🌌-sky : {mn}\n"
+                              f"♻️️-pressure : {pre}\n\n"
+                              f"🌧️--Rain :\n|\n"
+                              f"☔-rain meter : {rain}mm in 1 hour\n\n"
+                              f"☀️--Sunrise/Sunset :\n|\n"
+                              f"🌇-sunrise : {sunrise}\n"
+                              f"🌆-sunset : {sunset}\n\n"
+                              f"🌀--Wind :\n|\n"
+                              f"🧭-degree : {deg}°\n"
+                              f"🌬️-speed : {speed}m/s\n",reply_markup=keyboard1)
+
+                    except Exception as e :
+                        bot.sendMessage(chat_id,f"Please fill after /weather command.\nif everything okay, see the error.\nError : {e}",reply_markup=keyboard1)
+                weather()
+            else:
+                bot.sendMessage(chat_id, f"I don't know this command: {command}",reply_markup=keyboard1)
+
+    bot.message_loop(handle)
+
+except :
+    pass
+try :
+    def generate_response(input_text):
+        response = openai.Completion.create(
+            model="text-davinci-003",
+            prompt=input_text,
+            max_tokens=1000,
+        )
+        return response.choices[0].text
+except :
+    pass
+
+try :
+    @app.route('/{}'.format(secret), methods=["POST"])
+    def telegram_webhook():
+        update = request.get_json()
+        if "message" in update:
+            handle(update["message"])
+        return "OK"
+except :
+    pass
